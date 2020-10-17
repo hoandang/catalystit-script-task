@@ -1,0 +1,12 @@
+{
+    "name": "hoandang/catalyst",
+    "authors": [
+        {
+            "name": "Hoan Dang",
+            "email": "danghuyhoan@gmail.com"
+        }
+    ],
+    "require": {
+        "league/csv": "^9.6"
+    }
+}
