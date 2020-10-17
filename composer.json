@@ -7,6 +7,7 @@
         }
     ],
     "require": {
-        "league/csv": "^9.6"
+        "league/csv": "^9.6",
+        "vanilla/garden-cli": "~2.0"
     }
 }
