@@ -1,13 +1,14 @@
 {
-    "name": "hoandang/catalyst",
-    "authors": [
-        {
-            "name": "Hoan Dang",
-            "email": "danghuyhoan@gmail.com"
-        }
-    ],
-    "require": {
-        "league/csv": "^9.6",
-        "vanilla/garden-cli": "~2.0"
+  "name": "hoandang/catalyst",
+  "authors": [
+    {
+      "name": "Hoan Dang",
+      "email": "danghuyhoan@gmail.com"
     }
+  ],
+  "require": {
+    "php": ">=7.2",
+    "league/csv": "^9.6",
+    "vanilla/garden-cli": "~2.0"
+  }
 }
