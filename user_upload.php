@@ -58,10 +58,33 @@ EOD;
 
 $csv = Reader::createFromPath('users.csv')->setHeaderOffset(0);
 $headers = array_map('trim', $csv->getHeader());
-foreach($csv->getRecords($headers) as $user)
+$users = array_map(function($user) {
+  return [
+    'name' => filter_var(trim(ucfirst(strtolower($user['name'])), FILTER_SANITIZE_STRING)),
+    'surname' => filter_var(trim(ucfirst(strtolower($user['surname'])), FILTER_SANITIZE_STRING)),
+    'email' => filter_var(trim(strtolower($user['email'])), FILTER_SANITIZE_STRING)
+  ];
+}, iterator_to_array($csv->getRecords($headers)));
+
+$statement = $conn->prepare("INSERT INTO $DB_TABLE_NAME (name, surname, email) VALUES (?, ?, ?)");
+foreach($users as $user)
 {
-  var_dump($user['name']);
+  if (filter_var($user['email'], FILTER_VALIDATE_EMAIL))
+  {
+    try
+    {
+      $statement->bind_param("sss", $user['name'], $user['surname'], $user['email']);
+      $statement->execute();
+    }
+    catch(mysqli_sql_exception $e)
+    {
+      echo $e->getMessage();
+    }
+  }
+  else
+  {
+    echo 'Invalid email' . $user['email'] . ', no data added'.PHP_EOL;
+  }
 }
 
 $conn->close();
-
