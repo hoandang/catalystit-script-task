@@ -4,7 +4,7 @@
 require_once 'vendor/autoload.php';
 
 use Garden\Cli\Cli;
-use Illuminate\Database\Capsule\Manager as Capsule;
+use League\Csv\Reader;
 
 // Show help menu
 $cli = new Cli;
@@ -27,51 +27,41 @@ $DB_PASSWORD = $args->getOpt('db_password');
 $DB_NAME = 'CatalystIT';
 $DB_TABLE_NAME = 'Users';
 
+// Init db connection
+$conn = new mysqli($DB_HOST, $DB_USERNAME, $DB_PASSWORD);
+if ($conn->connect_error) 
+{
+  die("Connection failed: " . $conn->connect_error);
+}
+
 // Bootstrap database if not exists
-function createDb()
+if ($conn->query("CREATE DATABASE IF NOT EXISTS $DB_NAME") !== TRUE) 
 {
-  global $DB_HOST, $DB_USERNAME, $DB_PASSWORD, $DB_NAME;
-  $conn = new mysqli($DB_HOST, $DB_USERNAME, $DB_PASSWORD);
-  if ($conn->connect_error) 
-  {
-    die("Connection failed: " . $conn->connect_error);
-  }
-
-  // Create database
-  if ($conn->query("CREATE DATABASE IF NOT EXISTS $DB_NAME") !== TRUE) 
-  {
-    die("Error creating database: " . $conn->error);
-  }
-  $conn->close();
-}
-createDb();
-
-// Init  Illuminate database package for easy data manipulation
-$capsule = new Capsule;
-$capsule->addConnection([
-  'driver' => 'mysql',
-  'host' => $DB_HOST,
-  'database' => $DB_NAME,
-  'username' => $DB_USERNAME,
-  'password' => $DB_PASSWORD
-]);
-
-// bootstrap eloquent
-$capsule->setAsGlobal();
-$capsule->bootEloquent();
-
-// Get connection 
-$dbConnection = $capsule->getConnection();
-$schema = Capsule::schema();
-
-// Check if user invokes create_table opt 
-if ($args->hasOpt('create_table') && !$schema->hasTable($DB_TABLE_NAME))
-{
-  $schema->create($DB_TABLE_NAME, function ($table) {
-    $table->increments('id');
-    $table->string('email')->unique();
-    $table->timestamps();
-  });
+  die("Error creating database: " . $conn->error);
 }
 
-/* $user = Capsule::table('users')->where('id', 1)->get(); */
+$conn->select_db($DB_NAME);
+
+// build users table if create_table opt is invoked
+if ($args->hasOpt('create_table'))
+{
+  $sql = <<<EOD
+CREATE TABLE IF NOT EXISTS $DB_TABLE_NAME (
+  name VARCHAR(30),
+  surname VARCHAR(30),
+  email VARCHAR(50) NOT NULL,
+  UNIQUE(email)
+)
+EOD;
+  if (!$conn->query($sql)) die("Error creating table: " . $conn->error);
+}
+
+$csv = Reader::createFromPath('users.csv')->setHeaderOffset(0);
+$headers = array_map('trim', $csv->getHeader());
+foreach($csv->getRecords($headers) as $user)
+{
+  var_dump($user['name']);
+}
+
+$conn->close();
+
