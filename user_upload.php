@@ -38,7 +38,7 @@ use League\Csv\Reader;
 // Show help menu
 $cli = new Cli;
 $cli
-  ->opt('file', '[csv file name] – this is the name of the CSV to be parsed')
+  ->opt('file', '[csv file name] – this is the name of the CSV to be parsed', true)
   ->opt('create_table', 'this will cause the MySQL users table to be built (and no further action will be taken)')
   ->opt('dry_run', "this will be used with the --file directive in case we want to run the script but not insert into the DB. All other functions will be executed, but the database won't be altered")
   ->opt('db_host:h', 'MySQL host', true) 
@@ -53,6 +53,10 @@ $DB_HOST = $args->getOpt('db_host') == 'localhost' ? '127.0.0.1' : $args->getOpt
 $DB_USERNAME = $args->getOpt('db_username');
 $DB_PASSWORD = $args->getOpt('db_password');
 
+$HAS_CREATE_TABLE_OPTION = $args->hasOpt('create_table');
+$HAS_DRY_RUN_OPTION = $args->hasOpt('dry_run');
+$FILE = $args->getOpt('file');
+
 $DB_NAME = 'CatalystIT';
 $DB_TABLE_NAME = 'Users';
 
@@ -60,19 +64,19 @@ $DB_TABLE_NAME = 'Users';
 $conn = new mysqli($DB_HOST, $DB_USERNAME, $DB_PASSWORD);
 if ($conn->connect_error) 
 {
-  die("Connection failed: " . $conn->connect_error);
+  die("Connection failed: $conn->connect_error");
 }
 
 // Bootstrap database if not exists
 if ($conn->query("CREATE DATABASE IF NOT EXISTS $DB_NAME") !== TRUE) 
 {
-  die("Error creating database: " . $conn->error);
+  die("Error creating database: $conn->error");
 }
 
 $conn->select_db($DB_NAME);
 
 // build users table if create_table opt is invoked
-if ($args->hasOpt('create_table'))
+if ($HAS_CREATE_TABLE_OPTION)
 {
   $sql = <<<EOD
 CREATE TABLE IF NOT EXISTS $DB_TABLE_NAME (
@@ -82,11 +86,19 @@ CREATE TABLE IF NOT EXISTS $DB_TABLE_NAME (
   UNIQUE(email)
 )
 EOD;
-  if (!$conn->query($sql)) die("Error creating table: " . $conn->error);
+  if (!$conn->query($sql)) die("Error creating table: $conn->error");
 }
 
 // Load csv data
-$csv = Reader::createFromPath('users.csv')->setHeaderOffset(0);
+$csv = null;
+try 
+{
+  $csv = Reader::createFromPath($FILE)->setHeaderOffset(0);
+}
+catch(Exception $e)
+{
+  die($e->getMessage().PHP_EOL);
+}
 
 // Trim csv header
 $headers = array_map('trim', $csv->getHeader());
@@ -106,7 +118,7 @@ $users = array_filter($users, function($user) use($invalidEmailUsers) {
 array_walk($invalidEmailUsers, 'showInvalidEmailUser');
 
 // If there is no dry_run opt, then trigger the db insertion
-if (!$args->hasOpt('dry_run'))
+if (!$HAS_DRY_RUN_OPTION)
 {
   // Prepare for sql insertion
   $statement = $conn->prepare("INSERT INTO $DB_TABLE_NAME (name, surname, email) VALUES (?, ?, ?)");
@@ -114,7 +126,7 @@ if (!$args->hasOpt('dry_run'))
   {
     try
     {
-      $statement->bind_param("sss", $user['name'], $user['surname'], $user['email']);
+      $statement->bind_param('sss', $user['name'], $user['surname'], $user['email']);
       $statement->execute();
     }
     catch(mysqli_sql_exception $e)
