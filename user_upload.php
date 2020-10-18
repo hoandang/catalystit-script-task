@@ -122,6 +122,11 @@ if (!$HAS_DRY_RUN_OPTION)
 {
   // Prepare for sql insertion
   $statement = $conn->prepare("INSERT INTO $DB_TABLE_NAME (name, surname, email) VALUES (?, ?, ?)");
+  if (!$statement) 
+  {
+    die("Table $DB_TABLE_NAME has not been created yet, please run the script again with --create_table or --dry_run option to ommit the error message\n");
+  }
+  
   foreach($users as $user)
   {
     try
