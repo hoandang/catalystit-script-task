@@ -1,5 +1,34 @@
 <?php
 
+function sanitizeData($data)
+{
+  return trim(filter_var($data, FILTER_SANITIZE_STRING));
+}
+
+function transformName($data)
+{
+  return ucfirst(strtolower($data));
+}
+
+function showInvalidEmailUser($user)
+{
+  echo "Invalid Email: {$user['email']}\n";
+}
+
+function reformatUserData($user)
+{
+  return [
+    'name' => transformName(sanitizeData($user['name'])),
+    'surname' => transformName(sanitizeData($user['surname'])),
+    'email' => sanitizeData(strtolower($user['email']))
+  ];
+}
+
+function isInvalidEmailUser($user)
+{
+  return !filter_var($user['email'], FILTER_VALIDATE_EMAIL);
+}
+
 // Require composer's autoloader.
 require_once 'vendor/autoload.php';
 
@@ -56,20 +85,32 @@ EOD;
   if (!$conn->query($sql)) die("Error creating table: " . $conn->error);
 }
 
+// Load csv data
 $csv = Reader::createFromPath('users.csv')->setHeaderOffset(0);
-$headers = array_map('trim', $csv->getHeader());
-$users = array_map(function($user) {
-  return [
-    'name' => filter_var(trim(ucfirst(strtolower($user['name'])), FILTER_SANITIZE_STRING)),
-    'surname' => filter_var(trim(ucfirst(strtolower($user['surname'])), FILTER_SANITIZE_STRING)),
-    'email' => filter_var(trim(strtolower($user['email'])), FILTER_SANITIZE_STRING)
-  ];
-}, iterator_to_array($csv->getRecords($headers)));
 
-$statement = $conn->prepare("INSERT INTO $DB_TABLE_NAME (name, surname, email) VALUES (?, ?, ?)");
-foreach($users as $user)
+// Trim csv header
+$headers = array_map('trim', $csv->getHeader());
+
+// Reformat data
+$users = array_map('reformatUserData', iterator_to_array($csv->getRecords($headers)));
+
+// Extract invalid email users
+$invalidEmailUsers = array_filter($users, 'isInvalidEmailUser');
+
+// Remove invalid email users from the user list
+$users = array_filter($users, function($user) use($invalidEmailUsers) {
+  return $invalidEmailUsers['email'] != $user['email'];
+});
+
+// Echo out list of invalid email users
+array_walk($invalidEmailUsers, 'showInvalidEmailUser');
+
+// If there is no dry_run opt, then trigger the db insertion
+if (!$args->hasOpt('dry_run'))
 {
-  if (filter_var($user['email'], FILTER_VALIDATE_EMAIL))
+  // Prepare for sql insertion
+  $statement = $conn->prepare("INSERT INTO $DB_TABLE_NAME (name, surname, email) VALUES (?, ?, ?)");
+  foreach($users as $user)
   {
     try
     {
@@ -80,10 +121,6 @@ foreach($users as $user)
     {
       echo $e->getMessage();
     }
-  }
-  else
-  {
-    echo 'Invalid email' . $user['email'] . ', no data added'.PHP_EOL;
   }
 }
 
